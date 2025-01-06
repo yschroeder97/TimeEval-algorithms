@@ -5,6 +5,7 @@ import sys
 import json
 
 import numpy as np
+import pandas as pd
 
 from median_method import MedianMethod
 
@@ -31,22 +32,21 @@ def set_random_state(config: AlgorithmArgs) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
-
-def load_data(path: str) -> Tuple[np.ndarray, np.ndarray]:
-    return np.genfromtxt(path,
-                         skip_header=1,
-                         delimiter=",",
-                         usecols=[1])
+def read_csv_in_batches(filepath, batch_size):
+    iterator = pd.read_csv(filepath, chunksize=batch_size)
+    
+    for batch in iterator:
+        yield batch["value"].values
 
 
 def execute(config):
     set_random_state(config)
-    anom_timeseries_1d = load_data(config.dataInput)
-    mm = MedianMethod(timeseries=anom_timeseries_1d,
-                      neighbourhood_size=config.customParameters.neighbourhood_size)
+    mm = MedianMethod(neighbourhood_size=config.customParameters.neighbourhood_size)
 
-    scores = mm.fit_predict()
-    np.savetxt(config.dataOutput, scores)
+    for batch in read_csv_in_batches(config.dataInput, 1000):
+        scores = mm.fit_predict(batch)
+        with open(config.dataOutput, 'a') as out_f:
+            np.savetxt(out_f, scores)
 
 
 if __name__ == "__main__":
